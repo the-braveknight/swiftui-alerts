@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct Alert {
+public struct Alert {
     let title: String
     let message: String?
     
@@ -30,18 +30,18 @@ struct Alert {
     var actions: [Action] = []
     var textFields: [TextField] = []
     
-    func addTextField(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) -> Self {
+    public func addTextField(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) -> Self {
         var alert = self
         alert.textFields.append(TextField(title: title, isSecureTextEntry: isSecureTextEntry, text: text))
         return alert
     }
 }
 
-struct AlertModifier : ViewModifier {
+public struct AlertModifier : ViewModifier {
     @Binding var isPresented: Bool
     let content: () -> Alert
     
-    func body(content: Content) -> some View {
+    public func body(content: Content) -> some View {
         content.onChange(of: isPresented) { isPresented in
             if isPresented {
                 present()
@@ -65,14 +65,14 @@ struct AlertModifier : ViewModifier {
     }
 }
 
-extension View {
+public extension View {
     func alert(isPresented: Binding<Bool>, content: @escaping () -> Alert) -> some View {
         modifier(AlertModifier(isPresented: isPresented, content: content))
     }
 }
 
 #if canImport(UIKit)
-extension Alert {
+public extension Alert {
     func addAction(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) -> Self {
         var alert = self
         alert.actions.append(Action(title: title, style: style, handler: handler))
@@ -116,7 +116,7 @@ extension Alert {
 #endif
 
 #if canImport(AppKit)
-extension Alert {
+public extension Alert {
     func addAction(title: String, style: NSAlert.Style, handler: (() -> Void)? = nil) -> Self {
         var alert = self
         alert.actions.append(Action(title: title, style: style, handler: handler))
