@@ -86,14 +86,14 @@ public struct Alert {
 
 @_functionBuilder
 public struct ActionsBuilder {
-    static func buildBlock(_ actions: Alert.Action...) -> [Alert.Action] {
+    public static func buildBlock(_ actions: Alert.Action...) -> [Alert.Action] {
         actions
     }
 }
 
 @_functionBuilder
 public struct TextFieldsBuilder {
-    static func buildBlock(_ textFields: Alert.TextField...) -> [Alert.TextField] {
+    public static func buildBlock(_ textFields: Alert.TextField...) -> [Alert.TextField] {
         textFields
     }
 }
