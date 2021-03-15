@@ -24,21 +24,77 @@ public struct Alert {
         let style: NSAlert.Style
         #endif
         let handler: (() -> Void)?
+        
+        var isDisabled: Bool = false
+        
+        #if os(iOS)
+        init(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) {
+            self.title = title
+            self.style = style
+            self.handler = handler
+        }
+        #endif
+        
+        #if os(macOS)
+        init(title: String, style: NSAlert.Style, handler: (() -> Void)? = nil) {
+            self.title = title
+            self.style = style
+            self.handler = handler
+        }
+        #endif
+        
+        func disabled(_ isDisabled: Bool) -> Self {
+            var action = self
+            action.isDisabled = isDisabled
+            return action
+        }
     }
     
-    struct TextField {
+    public struct TextField {
         let title: String
         let isSecureTextEntry: Bool
         @Binding var text: String
+        
+        public init(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) {
+            self.title = title
+            self.isSecureTextEntry = isSecureTextEntry
+            self._text = text
+        }
     }
     
     var actions: [Action] = []
     var textFields: [TextField] = []
     
-    public func addTextField(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) -> Self {
+//    public func addTextField(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) -> Self {
+//        var alert = self
+//        alert.textFields.append(TextField(title: title, isSecureTextEntry: isSecureTextEntry, text: text))
+//        return alert
+//    }
+    
+    func textFields(@TextFieldsBuilder content: () -> [TextField]) -> Self {
         var alert = self
-        alert.textFields.append(TextField(title: title, isSecureTextEntry: isSecureTextEntry, text: text))
+        alert.textFields = content()
         return alert
+    }
+    
+    func actions(@ActionsBuilder content: () -> [Action]) -> Self {
+        var alert = self
+        alert.actions = content()
+        return alert
+    }
+}
+
+@_functionBuilder
+struct ActionsBuilder {
+    static func buildBlock(_ actions: Alert.Action...) -> [Alert.Action] {
+        actions
+    }
+}
+
+@_functionBuilder
+struct TextFieldsBuilder {
+    static func buildBlock(_ textFields: Alert.TextField...) -> [Alert.TextField] {
+        textFields
     }
 }
 
@@ -78,12 +134,6 @@ public extension View {
 
 #if canImport(UIKit)
 public extension Alert {
-    func addAction(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) -> Self {
-        var alert = self
-        alert.actions.append(Action(title: title, style: style, handler: handler))
-        return alert
-    }
-    
     func makeAlertController() -> UIAlertController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         
@@ -112,6 +162,8 @@ public extension Alert {
                 action.handler?()
             }
             
+            alertAction.isEnabled = !action.isDisabled
+            
             alert.addAction(alertAction)
         }
         
@@ -122,12 +174,6 @@ public extension Alert {
 
 #if canImport(AppKit)
 public extension Alert {
-    func addAction(title: String, style: NSAlert.Style, handler: (() -> Void)? = nil) -> Self {
-        var alert = self
-        alert.actions.append(Action(title: title, style: style, handler: handler))
-        return alert
-    }
-    
     func makeAlert() -> NSAlert {
         let alert = NSAlert()
         
