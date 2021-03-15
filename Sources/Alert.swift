@@ -16,7 +16,7 @@ public struct Alert {
         self.message = message
     }
     
-    struct Action {
+    public struct Action {
         let title: String
         #if canImport(UIKit)
         let style: UIAlertAction.Style
@@ -28,7 +28,7 @@ public struct Alert {
         var isDisabled: Bool = false
         
         #if os(iOS)
-        init(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) {
+        public init(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) {
             self.title = title
             self.style = style
             self.handler = handler
@@ -36,14 +36,14 @@ public struct Alert {
         #endif
         
         #if os(macOS)
-        init(title: String, style: NSAlert.Style, handler: (() -> Void)? = nil) {
+        public init(title: String, style: NSAlert.Style, handler: (() -> Void)? = nil) {
             self.title = title
             self.style = style
             self.handler = handler
         }
         #endif
         
-        func disabled(_ isDisabled: Bool) -> Self {
+        public func disabled(_ isDisabled: Bool) -> Self {
             var action = self
             action.isDisabled = isDisabled
             return action
@@ -71,13 +71,13 @@ public struct Alert {
 //        return alert
 //    }
     
-    func textFields(@TextFieldsBuilder content: () -> [TextField]) -> Self {
+    public func textFields(@TextFieldsBuilder content: () -> [TextField]) -> Self {
         var alert = self
         alert.textFields = content()
         return alert
     }
     
-    func actions(@ActionsBuilder content: () -> [Action]) -> Self {
+    public func actions(@ActionsBuilder content: () -> [Action]) -> Self {
         var alert = self
         alert.actions = content()
         return alert
