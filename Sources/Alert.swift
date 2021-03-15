@@ -14,9 +14,15 @@ public struct Alert {
     public init(title: String, message: String? = nil) {
         self.title = title
         self.message = message
+        
+        #if os(iOS)
+        self.actions = [Action(title: "Dismiss", style: .default)]
+        #elseif os(macOS)
+        self.actions = [Action(title: "Dismiss", style: .informational)]
+        #endif
     }
     
-    public struct Action {
+    public struct Action : Equatable {
         let title: String
         #if canImport(UIKit)
         let style: UIAlertAction.Style
@@ -46,7 +52,12 @@ public struct Alert {
         public func disabled(_ isDisabled: Bool) -> Self {
             var action = self
             action.isDisabled = isDisabled
+            NotificationCenter.default.post(Notification(name: .actionStateDidChange, object: action))
             return action
+        }
+        
+        public static func ==(lhs: Action, rhs: Action) -> Bool {
+            lhs.title == rhs.title && lhs.style == rhs.style
         }
     }
     
@@ -62,14 +73,8 @@ public struct Alert {
         }
     }
     
-    var actions: [Action] = []
+    var actions: [Action]
     var textFields: [TextField] = []
-    
-//    public func addTextField(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) -> Self {
-//        var alert = self
-//        alert.textFields.append(TextField(title: title, isSecureTextEntry: isSecureTextEntry, text: text))
-//        return alert
-//    }
     
     public func textFields(@TextFieldsBuilder content: () -> [TextField]) -> Self {
         var alert = self
@@ -98,9 +103,18 @@ public struct TextFieldsBuilder {
     }
 }
 
+extension Notification.Name {
+    static let actionStateDidChange = Notification.Name("actionStateDidChange")
+}
+
 public struct AlertModifier : ViewModifier {
     @Binding var isPresented: Bool
-    let content: () -> Alert
+    let alert: Alert
+    
+    public init(isPresented: Binding<Bool>, content: () -> Alert) {
+        self._isPresented = isPresented
+        self.alert = content()
+    }
     
     public func body(content: Content) -> some View {
         content.onChange(of: isPresented) { isPresented in
@@ -111,7 +125,6 @@ public struct AlertModifier : ViewModifier {
     }
     
     private func present() {
-        let alert = content()
         #if canImport(UIKit)
         let uiAlertController = alert.makeAlertController()
         UIApplication.shared.windows.first?.rootViewController?.present(uiAlertController, animated: true) {
@@ -164,6 +177,13 @@ public extension Alert {
             
             alertAction.isEnabled = !action.isDisabled
             
+            NotificationCenter.default.addObserver(forName: .actionStateDidChange, object: nil, queue: .main) { notification in
+                //
+                if let observedAction = notification.object as? Action, action == observedAction {
+                    alertAction.isEnabled = !observedAction.isDisabled
+                }
+            }
+            
             alert.addAction(alertAction)
         }
         
@@ -183,7 +203,15 @@ public extension Alert {
         }
         
         actions.forEach { action in
-            alert.addButton(withTitle: action.title)
+            let button = alert.addButton(withTitle: action.title)
+            button.isEnabled = !action.isDisabled
+            
+            NotificationCenter.default.addObserver(forName: .actionStateDidChange, object: nil, queue: .main) { notification in
+                //
+                if let observedAction = notification.object as? Action, action == observedAction {
+                    button.isEnabled = !observedAction.isDisabled
+                }
+            }
         }
         
         let textFields: [NSTextField] = self.textFields.map { textField in
