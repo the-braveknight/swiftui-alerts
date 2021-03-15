@@ -164,6 +164,7 @@ public extension Alert {
             }
             
             alert.addTextField { uiTextField in
+                uiTextField.text = textField.text
                 uiTextField.placeholder = textField.title
                 uiTextField.isSecureTextEntry = textField.isSecureTextEntry
                 NotificationCenter.default.addObserver(forName:  UITextField.textDidChangeNotification, object: uiTextField, queue: .main, using: handleTextChange)
@@ -225,6 +226,7 @@ public extension Alert {
                 textField.text = nsTextField.stringValue
             }
             
+            nsTextField.stringValue = textField.text
             nsTextField.placeholderString = textField.title
             NotificationCenter.default.addObserver(forName:  NSTextField.textDidChangeNotification  , object: nsTextField, queue: .main, using: handleTextChange)
             
