@@ -11,6 +11,11 @@ public struct Alert {
     public let title: String
     public let message: String?
     
+    public init(title: String, message: String? = nil) {
+        self.title = title
+        self.message = message
+    }
+    
     struct Action {
         let title: String
         #if canImport(UIKit)
