@@ -157,11 +157,14 @@ public extension Alert {
             return nsTextField
         }
         
-        let stackView = NSStackView(views: textFields)
-        stackView.frame = CGRect(x: 0, y: 0, width: 300, height: CGFloat(textFields.count) * 20 + CGFloat(textFields.count - 1) * stackView.spacing)
-        stackView.translatesAutoresizingMaskIntoConstraints = true
-        stackView.orientation = .vertical
-        alert.accessoryView = stackView
+        if !textFields.isEmpty {
+            let stackView = NSStackView(views: textFields)
+            stackView.frame = CGRect(x: 0, y: 0, width: 300, height: CGFloat(textFields.count) * 20 + CGFloat(textFields.count - 1) * stackView.spacing)
+            stackView.translatesAutoresizingMaskIntoConstraints = true
+            stackView.orientation = .vertical
+            alert.accessoryView = stackView
+        }
+        
         return alert
     }
 }
