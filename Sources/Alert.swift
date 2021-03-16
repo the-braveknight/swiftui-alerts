@@ -8,8 +8,10 @@
 import SwiftUI
 
 public struct Alert {
-    public let title: String
-    public let message: String?
+    private let title: String
+    private let message: String?
+    fileprivate var actions: [Action]
+    private var textFields: [TextField] = []
     
     public init(title: String, message: String? = nil) {
         self.title = title
@@ -24,14 +26,16 @@ public struct Alert {
     
     public struct Action : Equatable {
         let title: String
-        #if canImport(UIKit)
+        #if os(iOS)
         let style: UIAlertAction.Style
-        #elseif canImport(AppKit)
+        #elseif os(macOS)
         let style: NSAlert.Style
         #endif
         let handler: (() -> Void)?
         
-        var isDisabled: Bool = false
+        private(set) var isDisabled: Bool = false
+        
+        static let stateDidChangeNotification = Notification.Name("actionStateDidChange")
         
         #if os(iOS)
         public init(title: String, style: UIAlertAction.Style, handler: (() -> Void)? = nil) {
@@ -52,7 +56,7 @@ public struct Alert {
         public func disabled(_ isDisabled: Bool) -> Self {
             var action = self
             action.isDisabled = isDisabled
-            NotificationCenter.default.post(Notification(name: .actionStateDidChange, object: action))
+            NotificationCenter.default.post(Notification(name: Action.stateDidChangeNotification, object: action))
             return action
         }
         
@@ -62,9 +66,9 @@ public struct Alert {
     }
     
     public struct TextField {
-        let title: String
-        let isSecureTextEntry: Bool
-        @Binding var text: String
+        fileprivate let title: String
+        fileprivate let isSecureTextEntry: Bool
+        @Binding fileprivate var text: String
         
         public init(title: String, isSecureTextEntry: Bool = false, text: Binding<String>) {
             self.title = title
@@ -73,38 +77,114 @@ public struct Alert {
         }
     }
     
-    var actions: [Action]
-    var textFields: [TextField] = []
-    
-    public func textFields(@TextFieldsBuilder content: () -> [TextField]) -> Self {
+    public func textFields(@ArrayBuilder content: () -> [TextField]) -> Self {
         var alert = self
         alert.textFields = content()
         return alert
     }
     
-    public func actions(@ActionsBuilder content: () -> [Action]) -> Self {
+    public func actions(@ArrayBuilder content: () -> [Action]) -> Self {
         var alert = self
         alert.actions = content()
         return alert
     }
-}
-
-@_functionBuilder
-public struct ActionsBuilder {
-    public static func buildBlock(_ actions: Alert.Action...) -> [Alert.Action] {
-        actions
+    
+    #if os(iOS)
+    func makeUIAlertController() -> UIAlertController {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        
+        textFields.forEach { textField in
+            func handleTextChange(notification: Notification) {
+                guard let uiTextField = notification.object as? UITextField else {
+                    return
+                }
+                
+                guard let text = uiTextField.text else {
+                    return
+                }
+                
+                textField.text = text
+            }
+            
+            alert.addTextField { uiTextField in
+                uiTextField.text = textField.text
+                uiTextField.placeholder = textField.title
+                uiTextField.isSecureTextEntry = textField.isSecureTextEntry
+                
+                NotificationCenter.default.addObserver(forName:  UITextField.textDidChangeNotification, object: nil, queue: .main, using: handleTextChange)
+            }
+        }
+        
+        actions.forEach { action in
+            let alertAction = UIAlertAction(title: action.title, style: action.style) { _ in
+                action.handler?()
+            }
+            
+            alertAction.isEnabled = !action.isDisabled
+            
+            func handleStateChange(notification: Notification) {
+                if let observedAction = notification.object as? Action, action == observedAction {
+                    alertAction.isEnabled = !observedAction.isDisabled
+                }
+            }
+            
+            NotificationCenter.default.addObserver(forName: Action.stateDidChangeNotification, object: nil, queue: .main, using: handleStateChange)
+            
+            alert.addAction(alertAction)
+        }
+        
+        return alert
     }
-}
-
-@_functionBuilder
-public struct TextFieldsBuilder {
-    public static func buildBlock(_ textFields: Alert.TextField...) -> [Alert.TextField] {
-        textFields
+    #elseif os(macOS)
+    func makeNSAlert() -> NSAlert {
+        let alert = NSAlert()
+        
+        alert.messageText = title
+        if let message = message {
+            alert.informativeText = message
+        }
+        
+        actions.forEach { action in
+            let button = alert.addButton(withTitle: action.title)
+            button.isEnabled = !action.isDisabled
+            
+            NotificationCenter.default.addObserver(forName: Action.stateDidChangeNotification, object: nil, queue: .main) { notification in
+                //
+                if let observedAction = notification.object as? Action, action == observedAction {
+                    button.isEnabled = !observedAction.isDisabled
+                }
+            }
+        }
+        
+        let nsTextFields: [NSTextField] = textFields.map { textField in
+            let nsTextField = textField.isSecureTextEntry ? NSSecureTextField() : NSTextField()
+            
+            func handleTextChange(notification: Notification) {
+                guard let nsTextField = notification.object as? NSTextField else {
+                    return
+                }
+                
+                textField.text = nsTextField.stringValue
+            }
+            
+            nsTextField.stringValue = textField.text
+            nsTextField.placeholderString = textField.title
+            NotificationCenter.default.addObserver(forName:  NSTextField.textDidChangeNotification  , object: nsTextField, queue: .main, using: handleTextChange)
+            
+            return nsTextField
+        }
+        
+        if !nsTextFields.isEmpty {
+            let stackView = NSStackView(views: nsTextFields)
+            stackView.frame = CGRect(x: 0, y: 0, width: 230, height: CGFloat(nsTextFields.count) * 20 + CGFloat(nsTextFields.count - 1) * stackView.spacing)
+            stackView.translatesAutoresizingMaskIntoConstraints = true
+            stackView.orientation = .vertical
+            alert.accessoryView = stackView
+        }
+        
+        return alert
     }
-}
-
-extension Notification.Name {
-    static let actionStateDidChange = Notification.Name("actionStateDidChange")
+    #endif
 }
 
 public struct AlertModifier : ViewModifier {
@@ -125,13 +205,13 @@ public struct AlertModifier : ViewModifier {
     }
     
     private func present() {
-        #if canImport(UIKit)
-        let uiAlertController = alert.makeAlertController()
+        #if os(iOS)
+        let uiAlertController = alert.makeUIAlertController()
         UIApplication.shared.windows.first?.rootViewController?.present(uiAlertController, animated: true) {
             isPresented = false
         }
-        #elseif canImport(AppKit)
-        let result = alert.makeAlert().runModal()
+        #elseif os(macOS)
+        let result = alert.makeNSAlert().runModal()
         let index = result.rawValue - 1000 // According to documentation
         alert.actions[index].handler?()
         isPresented = false
@@ -139,109 +219,5 @@ public struct AlertModifier : ViewModifier {
     }
 }
 
-public extension View {
-    func alert(isPresented: Binding<Bool>, content: @escaping () -> Alert) -> some View {
-        modifier(AlertModifier(isPresented: isPresented, content: content))
-    }
-}
-
-#if canImport(UIKit)
-public extension Alert {
-    func makeAlertController() -> UIAlertController {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        
-        textFields.forEach { textField in
-            func handleTextChange(notification: Notification) {
-                guard let uiTextField = notification.object as? UITextField else {
-                    return
-                }
-                
-                guard let text = uiTextField.text else {
-                    return
-                }
-                
-                textField.text = text
-            }
-            
-            alert.addTextField { uiTextField in
-                uiTextField.text = textField.text
-                uiTextField.placeholder = textField.title
-                uiTextField.isSecureTextEntry = textField.isSecureTextEntry
-                NotificationCenter.default.addObserver(forName:  UITextField.textDidChangeNotification, object: uiTextField, queue: .main, using: handleTextChange)
-            }
-        }
-        
-        actions.forEach { action in
-            let alertAction = UIAlertAction(title: action.title, style: action.style) { _ in
-                action.handler?()
-            }
-            
-            alertAction.isEnabled = !action.isDisabled
-            
-            NotificationCenter.default.addObserver(forName: .actionStateDidChange, object: nil, queue: .main) { notification in
-                //
-                if let observedAction = notification.object as? Action, action == observedAction {
-                    alertAction.isEnabled = !observedAction.isDisabled
-                }
-            }
-            
-            alert.addAction(alertAction)
-        }
-        
-        return alert
-    }
-}
-#endif
-
-#if canImport(AppKit)
-public extension Alert {
-    func makeAlert() -> NSAlert {
-        let alert = NSAlert()
-        
-        alert.messageText = title
-        if let message = message {
-            alert.informativeText = message
-        }
-        
-        actions.forEach { action in
-            let button = alert.addButton(withTitle: action.title)
-            button.isEnabled = !action.isDisabled
-            
-            NotificationCenter.default.addObserver(forName: .actionStateDidChange, object: nil, queue: .main) { notification in
-                //
-                if let observedAction = notification.object as? Action, action == observedAction {
-                    button.isEnabled = !observedAction.isDisabled
-                }
-            }
-        }
-        
-        let textFields: [NSTextField] = self.textFields.map { textField in
-            let nsTextField = textField.isSecureTextEntry ? NSSecureTextField() : NSTextField()
-            
-            func handleTextChange(notification: Notification) {
-                guard let nsTextField = notification.object as? NSTextField else {
-                    return
-                }
-                
-                textField.text = nsTextField.stringValue
-            }
-            
-            nsTextField.stringValue = textField.text
-            nsTextField.placeholderString = textField.title
-            NotificationCenter.default.addObserver(forName:  NSTextField.textDidChangeNotification  , object: nsTextField, queue: .main, using: handleTextChange)
-            
-            return nsTextField
-        }
-        
-        if !textFields.isEmpty {
-            let stackView = NSStackView(views: textFields)
-            stackView.frame = CGRect(x: 0, y: 0, width: 300, height: CGFloat(textFields.count) * 20 + CGFloat(textFields.count - 1) * stackView.spacing)
-            stackView.translatesAutoresizingMaskIntoConstraints = true
-            stackView.orientation = .vertical
-            alert.accessoryView = stackView
-        }
-        
-        return alert
-    }
-}
-#endif
+public typealias Action = Alert.Action
+public typealias TextField = Alert.TextField
