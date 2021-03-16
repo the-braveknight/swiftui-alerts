@@ -111,7 +111,7 @@ public struct Alert {
                 uiTextField.placeholder = textField.title
                 uiTextField.isSecureTextEntry = textField.isSecureTextEntry
                 
-                NotificationCenter.default.addObserver(forName:  UITextField.textDidChangeNotification, object: nil, queue: .main, using: handleTextChange)
+                NotificationCenter.default.addObserver(forName:  UITextField.textDidChangeNotification, object: uiTextField, queue: .main, using: handleTextChange)
             }
         }
         
