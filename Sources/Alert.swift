@@ -90,7 +90,7 @@ public struct Alert {
     }
     
     #if os(iOS)
-    func makeUIAlertController() -> UIAlertController {
+    func makeUIAlertController(isPresented: Binding<Bool>) -> UIAlertController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         
         textFields.forEach { textField in
@@ -118,6 +118,7 @@ public struct Alert {
         actions.forEach { action in
             let alertAction = UIAlertAction(title: action.title, style: action.style) { _ in
                 action.handler?()
+                isPresented.wrappedValue = false
             }
             
             alertAction.isEnabled = !action.isDisabled
@@ -206,10 +207,8 @@ public struct AlertModifier : ViewModifier {
     
     private func present() {
         #if os(iOS)
-        let uiAlertController = alert.makeUIAlertController()
-        UIApplication.shared.windows.first?.rootViewController?.present(uiAlertController, animated: true) {
-            isPresented = false
-        }
+        let uiAlertController = alert.makeUIAlertController(isPresented: $isPresented)
+        UIApplication.shared.windows.first?.rootViewController?.present(uiAlertController, animated: true)
         #elseif os(macOS)
         let result = alert.makeNSAlert().runModal()
         let index = result.rawValue - 1000 // According to documentation
